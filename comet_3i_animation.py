@@ -52,7 +52,7 @@ uncertainty_axes = [0.15, 0.08, 0.05]  # AU - along radial, tangential, normal d
 # Animation parameters
 total_frames = 1000  # More frames for smoother animation
 # Set to True for quick testing
-TEST_MODE = True
+TEST_MODE = False
 if TEST_MODE:
     total_frames = 100  # Quick test with 100 frames
 
@@ -279,6 +279,18 @@ planet_plots = {}
 orbit_lines = {}
 planet_labels = {}
 
+# Offsets temporales para cada planeta (en DÍAS)
+# Avanza (+) o retrocede (-) cada planeta en su órbita
+# Esto cambia la fecha efectiva para obtener el planeta de ephemeris
+planet_time_offsets = {
+    'mercury': 5,   # días
+    'venus': 90,
+    'earth': 140,
+    'mars': 200,
+    'jupiter': 1200,
+    'saturn': 0
+}
+
 # Draw REAL orbits for each planet using ephemeris data
 print("\n[ORBITS] Calculating planetary orbits from ephemeris...")
 for planet_name in planet_names_list:
@@ -287,6 +299,8 @@ for planet_name in planet_names_list:
     # Calculate orbit from real ephemeris data (heliocentric)
     print(f"  Computing orbit for {planet_name.capitalize()}...")
     x_orbit, y_orbit, z_orbit = get_planetary_orbit_from_ephemeris(planet_name, perihelion_date, num_points=300)
+    
+    # NO rotar órbitas - solo rotar los planetas individuales en animate()
     
     # Different line styles based on distance
     if planet_name in ['mercury', 'venus', 'earth', 'mars']:
@@ -474,14 +488,30 @@ def animate(frame):
         # If Sun position fails, assume it's at origin
         sun_x, sun_y, sun_z = 0, 0, 0
     
+    # Usar offsets temporales definidos globalmente (arriba, cerca de línea 285)
+    # No redefinir aquí - usar el diccionario global planet_time_offsets
+    
     for planet_name in planet_names_list:
         try:
-            # Get real position from ephemeris (barycentric)
-            pos = get_body_barycentric_posvel(planet_name, Time(date_str_for_ephemeris))[0]
+            # Calcular fecha ajustada para este planeta
+            adjusted_date = current_date + timedelta(days=planet_time_offsets[planet_name])
+            adjusted_date_str = adjusted_date.strftime("%Y-%m-%d")
+            
+            # Get Sun position for adjusted date
+            try:
+                sun_pos_adj = get_body_barycentric_posvel('sun', Time(adjusted_date_str))[0]
+                sun_x_adj = sun_pos_adj.x.value
+                sun_y_adj = sun_pos_adj.y.value
+                sun_z_adj = sun_pos_adj.z.value
+            except:
+                sun_x_adj, sun_y_adj, sun_z_adj = sun_x, sun_y, sun_z
+            
+            # Get planet position from ephemeris at adjusted date
+            pos = get_body_barycentric_posvel(planet_name, Time(adjusted_date_str))[0]
             # Convert to heliocentric (relative to Sun)
-            planet_x = pos.x.value - sun_x
-            planet_y = pos.y.value - sun_y
-            planet_z = pos.z.value - sun_z
+            planet_x = pos.x.value - sun_x_adj
+            planet_y = pos.y.value - sun_y_adj
+            planet_z = pos.z.value - sun_z_adj
             
             # Update planet scatter plot
             planet_plots[planet_name]._offsets3d = ([planet_x], [planet_y], [planet_z])
@@ -635,14 +665,14 @@ def animate(frame):
     ax_len_z = uncertainty_axes[2] * AU_TO_KM / 1e6
     
     # Update info panel - compact horizontal format
-    info_text.set_text(f'''3I/ATLAS | Dist: {distance_mkm:.0f}M km | {perihelion_str} | Vel: {abs(velocity_kms):.0f} km/s''')
+    info_text.set_text(f'''3I/ATLAS | Dist. to Sun: {distance_mkm:.0f}M km | {perihelion_str} | Vel. w.r.t. Sun: {abs(velocity_kms):.0f} km/s''')
 
     # Update legend - with ellipse measurements
     legend_text.set_text(f'''UNCERTAINTY ELLIPSES (3σ = 99.7%):
 XY plane (red): {ax_len_x:.1f} × {ax_len_y:.1f} M km
 XZ plane (green): {ax_len_x:.1f} × {ax_len_z:.1f} M km
 YZ plane (blue): {ax_len_y:.1f} × {ax_len_z:.1f} M km
-Causes: Obs. errors, Gravity, Outgassing''')
+Causes: Obs. errors, Gravity Uncertainty, Outgassing''')
 
     return comet_point, comet_tail, info_text, title_text, legend_text, uncertainty_surf, dimension_lines, ellipse_labels
 
