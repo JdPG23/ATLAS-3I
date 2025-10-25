@@ -44,13 +44,20 @@ def create_mp4_from_frames():
     try:
         cmd = [
             ffmpeg_path,
-            '-framerate', '30',  # Increased to 30 fps for smoother playback
+            '-framerate', '30',  # Smooth 30 fps playback
             '-i', frame_pattern,
-            '-vf', 'scale=1400:1000:force_original_aspect_ratio=decrease,pad=1400:1000:(ow-iw)/2:(oh-ih)/2',  # Force even dimensions
+            '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',  # Full HD resolution
             '-c:v', 'libx264',
-            '-crf', '18',
-            '-preset', 'slow',
+            '-crf', '15',  # Higher quality (lower CRF = better quality)
+            '-preset', 'veryslow',  # Maximum quality preset (slower encoding)
+            '-profile:v', 'high',  # H.264 high profile for better quality
+            '-level', '4.0',  # H.264 level 4.0
+            '-tune', 'film',  # Optimize for film content
             '-pix_fmt', 'yuv420p',
+            '-b:v', '0',  # Let CRF control bitrate
+            '-minrate', '1M',  # Minimum bitrate
+            '-maxrate', '20M',  # Maximum bitrate
+            '-bufsize', '25M',  # Buffer size for bitrate control
             output_file,
             '-y'  # Overwrite output file
         ]
